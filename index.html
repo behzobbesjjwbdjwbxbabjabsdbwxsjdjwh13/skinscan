@@ -1,0 +1,918 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>SkinScan - AI 护肤成分分析</title>
+  <style>
+    :root {
+      --primary: #8B5CF6;
+      --primary-light: #EDE9FE;
+      --secondary: #EC4899;
+      --bg: #F5F3FF;
+      --card: #FFFFFF;
+      --text: #1F2937;
+      --muted: #6B7280;
+      --border: #E5E7EB;
+      --danger: #EF4444;
+      --warning: #F59E0B;
+      --success: #10B981;
+      --radius: 16px;
+      --shadow: 0 2px 16px rgba(139,92,246,0.10);
+      --nav-h: 68px;
+      --hdr-h: 72px;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    /* ── Header ── */
+    header {
+      position: fixed; top: 0; left: 0; right: 0;
+      height: var(--hdr-h);
+      background: linear-gradient(135deg, #7C3AED, #DB2777);
+      display: flex; align-items: center; padding: 0 20px;
+      z-index: 100;
+      box-shadow: 0 2px 20px rgba(139,92,246,0.30);
+    }
+    .hdr-icon {
+      width: 42px; height: 42px; border-radius: 13px;
+      background: rgba(255,255,255,0.20);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 22px; margin-right: 12px; flex-shrink: 0;
+    }
+    header h1 { color: #fff; font-size: 22px; font-weight: 800; line-height: 1.1; }
+    header p  { color: rgba(255,255,255,0.75); font-size: 12px; }
+
+    /* ── Main ── */
+    main {
+      padding-top: calc(var(--hdr-h) + 16px);
+      padding-bottom: calc(var(--nav-h) + env(safe-area-inset-bottom, 0px) + 16px);
+      min-height: 100vh;
+    }
+    .tab { display: none; padding: 0 16px; animation: fadein .25s ease; }
+    .tab.active { display: block; }
+    @keyframes fadein {
+      from { opacity: 0; transform: translateY(10px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    /* ── Cards ── */
+    .card {
+      background: var(--card); border-radius: var(--radius);
+      padding: 18px; margin-bottom: 14px;
+      box-shadow: var(--shadow);
+    }
+    .card-title {
+      font-size: 15px; font-weight: 700; margin-bottom: 12px;
+      display: flex; align-items: center; gap: 7px;
+    }
+
+    /* ── Buttons ── */
+    .btn {
+      display: inline-flex; align-items: center; justify-content: center;
+      gap: 7px; padding: 13px 18px; border-radius: 13px; border: none;
+      font-size: 15px; font-weight: 600; cursor: pointer;
+      transition: transform .15s, box-shadow .15s; width: 100%;
+      font-family: inherit;
+    }
+    .btn:active { transform: scale(.97); }
+    .btn-primary {
+      background: linear-gradient(135deg, #7C3AED, #DB2777);
+      color: #fff;
+      box-shadow: 0 4px 14px rgba(139,92,246,0.35);
+    }
+    .btn-primary:hover { box-shadow: 0 6px 18px rgba(139,92,246,0.45); }
+    .btn-secondary { background: var(--primary-light); color: var(--primary); }
+    .btn-outline { background: transparent; border: 2px solid var(--border); color: var(--muted); }
+    .btn-danger  { background: #FEE2E2; color: var(--danger); }
+    .btn-sm { padding: 8px 14px; font-size: 13px; width: auto; border-radius: 10px; }
+    .btn-row { display: flex; gap: 10px; }
+    .btn-row .btn { flex: 1; }
+
+    /* ── Inputs ── */
+    .field { margin-bottom: 13px; }
+    label.lbl { display: block; font-size: 13px; font-weight: 600; color: var(--muted); margin-bottom: 5px; }
+    input[type=text], textarea {
+      width: 100%; padding: 12px 14px;
+      border: 2px solid var(--border); border-radius: 12px;
+      font-size: 15px; color: var(--text); background: #fff;
+      outline: none; transition: border-color .2s; font-family: inherit;
+    }
+    input[type=text]:focus, textarea:focus { border-color: var(--primary); }
+    textarea { resize: vertical; min-height: 90px; line-height: 1.5; }
+
+    /* ── Mode toggle ── */
+    .mode-row { display: flex; gap: 8px; margin-bottom: 14px; }
+    .mode-btn {
+      flex: 1; padding: 11px 8px;
+      border: 2px solid var(--border); border-radius: 12px;
+      background: #fff; font-size: 14px; font-weight: 600;
+      color: var(--muted); cursor: pointer; transition: all .2s;
+      font-family: inherit;
+    }
+    .mode-btn.active {
+      border-color: var(--primary); background: var(--primary-light); color: var(--primary);
+    }
+
+    /* ── Upload area ── */
+    .upload-area {
+      border: 2px dashed #C4B5FD; border-radius: var(--radius);
+      padding: 36px 20px; text-align: center; cursor: pointer;
+      transition: all .2s; background: rgba(139,92,246,0.03);
+    }
+    .upload-area:hover, .upload-area.over {
+      border-color: var(--primary); background: rgba(139,92,246,0.07);
+    }
+    .upload-icon { font-size: 52px; margin-bottom: 10px; }
+    .upload-text strong { display: block; font-size: 16px; font-weight: 700; color: var(--primary); margin-bottom: 4px; }
+    .upload-text span  { font-size: 13px; color: var(--muted); }
+    .img-preview {
+      width: 100%; max-height: 210px; object-fit: contain;
+      border-radius: 12px; margin-bottom: 10px; display: none;
+    }
+
+    /* ── Page header row ── */
+    .pg-hdr { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 14px; }
+    .pg-title { font-size: 20px; font-weight: 800; }
+    .pg-sub   { font-size: 13px; color: var(--muted); margin-top: 2px; }
+
+    /* ── Bottom nav ── */
+    nav {
+      position: fixed; bottom: 0; left: 0; right: 0;
+      height: calc(var(--nav-h) + env(safe-area-inset-bottom, 0px));
+      background: #fff; border-top: 1px solid var(--border);
+      display: flex; align-items: flex-start; padding-top: 6px;
+      z-index: 100; box-shadow: 0 -4px 20px rgba(0,0,0,0.07);
+    }
+    .nav-btn {
+      flex: 1; display: flex; flex-direction: column;
+      align-items: center; gap: 3px;
+      background: none; border: none; cursor: pointer;
+      color: var(--muted); transition: color .2s; padding: 4px 0;
+      font-family: inherit;
+    }
+    .nav-btn.active { color: var(--primary); }
+    .nav-icon  { font-size: 23px; line-height: 1; }
+    .nav-label { font-size: 11px; font-weight: 600; }
+
+    /* ── Rating bar ── */
+    .rating-bar { height: 8px; border-radius: 4px; background: var(--border); margin: 6px 0 12px; }
+    .rating-fill { height: 100%; border-radius: 4px; transition: width .7s ease; }
+
+    /* ── Badges ── */
+    .badge {
+      display: inline-flex; align-items: center; padding: 3px 10px;
+      border-radius: 20px; font-size: 12px; font-weight: 600; margin: 2px;
+    }
+    .b-purple { background: var(--primary-light); color: var(--primary); }
+    .b-green  { background: #D1FAE5; color: #065F46; }
+    .b-red    { background: #FEE2E2; color: #991B1B; }
+    .b-yellow { background: #FEF3C7; color: #92400E; }
+    .b-gray   { background: var(--border); color: var(--muted); }
+
+    /* ── Ingredient items ── */
+    .ing-item { padding: 11px; border-radius: 11px; background: #F9FAFB; margin-bottom: 8px; }
+    .ing-name { font-weight: 700; font-size: 14px; }
+    .ing-role { font-size: 12px; color: var(--muted); margin-top: 1px; }
+    .ing-benefit { font-size: 13px; color: #065F46; margin-top: 5px; }
+    .ing-concern { font-size: 13px; color: #991B1B; margin-top: 4px; }
+
+    /* ── Product cards ── */
+    .prod-card {
+      background: var(--card); border-radius: var(--radius);
+      padding: 15px; margin-bottom: 11px;
+      box-shadow: var(--shadow);
+      display: flex; gap: 13px; align-items: flex-start;
+    }
+    .prod-icon {
+      width: 50px; height: 50px; border-radius: 13px; flex-shrink: 0;
+      background: linear-gradient(135deg, var(--primary-light), #FCE7F3);
+      display: flex; align-items: center; justify-content: center; font-size: 26px;
+    }
+    .prod-info { flex: 1; min-width: 0; }
+    .prod-name { font-weight: 700; font-size: 15px; }
+    .prod-meta { font-size: 12px; color: var(--muted); margin-top: 2px; }
+    .prod-acts { display: flex; gap: 7px; margin-top: 9px; flex-wrap: wrap; }
+
+    /* ── Routine steps ── */
+    .step-row {
+      display: flex; gap: 14px;
+      padding: 13px 0; border-bottom: 1px solid var(--border);
+    }
+    .step-row:last-child { border-bottom: none; }
+    .step-num {
+      width: 32px; height: 32px; border-radius: 50%; flex-shrink: 0;
+      background: linear-gradient(135deg, #7C3AED, #DB2777);
+      color: #fff; display: flex; align-items: center; justify-content: center;
+      font-size: 14px; font-weight: 800;
+    }
+    .step-prod { font-weight: 700; font-size: 14px; }
+    .step-use  { font-size: 13px; color: var(--muted); margin-top: 2px; }
+    .step-tip  { font-size: 12px; color: var(--primary); margin-top: 4px; }
+
+    /* ── Conflict items ── */
+    .conf-item { padding: 13px; border-radius: 12px; margin-bottom: 10px; border-left: 4px solid; }
+    .conf-high   { background: #FEF2F2; border-color: var(--danger); }
+    .conf-medium { background: #FFFBEB; border-color: var(--warning); }
+    .conf-low    { background: #F0FDF4; border-color: var(--success); }
+    .conf-title  { font-weight: 700; font-size: 14px; margin-bottom: 5px; }
+    .conf-reason { font-size: 13px; color: var(--muted); }
+    .conf-sugg   { font-size: 13px; color: var(--primary); margin-top: 6px; font-style: italic; }
+
+    /* ── Checkbox select ── */
+    .check-item {
+      display: flex; align-items: center; gap: 12px;
+      padding: 12px; border: 2px solid var(--border); border-radius: 11px;
+      margin-bottom: 8px; cursor: pointer; transition: all .2s; user-select: none;
+    }
+    .check-item.sel { border-color: var(--primary); background: var(--primary-light); }
+    .check-item input { width: 18px; height: 18px; accent-color: var(--primary); flex-shrink: 0; }
+    .check-item-name { font-weight: 600; font-size: 14px; }
+    .check-item-sub  { font-size: 12px; color: var(--muted); margin-top: 1px; }
+
+    /* ── Empty state ── */
+    .empty {
+      text-align: center; padding: 48px 20px; color: var(--muted);
+    }
+    .empty-ic { font-size: 62px; margin-bottom: 14px; }
+    .empty h3 { font-size: 18px; font-weight: 700; color: var(--text); margin-bottom: 7px; }
+    .empty p  { font-size: 14px; }
+
+    /* ── Loading overlay ── */
+    #loading {
+      display: none; position: fixed; inset: 0;
+      background: rgba(0,0,0,.52); z-index: 1000;
+      flex-direction: column; align-items: center; justify-content: center; gap: 14px;
+    }
+    #loading.on { display: flex; }
+    .spinner {
+      width: 50px; height: 50px;
+      border: 4px solid rgba(255,255,255,0.25);
+      border-top-color: #fff; border-radius: 50%;
+      animation: spin .75s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .load-txt { color: #fff; font-size: 15px; font-weight: 600; }
+
+    /* ── Toast ── */
+    #toast {
+      position: fixed;
+      bottom: calc(var(--nav-h) + env(safe-area-inset-bottom, 0px) + 14px);
+      left: 50%; transform: translateX(-50%) translateY(80px);
+      background: #1F2937; color: #fff;
+      padding: 12px 20px; border-radius: 12px;
+      font-size: 14px; font-weight: 600;
+      z-index: 999; transition: transform .3s ease;
+      white-space: nowrap; max-width: 88vw;
+      text-align: center;
+    }
+    #toast.on  { transform: translateX(-50%) translateY(0); }
+    #toast.ok  { background: var(--success); }
+    #toast.err { background: var(--danger); }
+
+    /* ── Modal ── */
+    .modal-bg {
+      display: none; position: fixed; inset: 0;
+      background: rgba(0,0,0,.50); z-index: 500; align-items: flex-end;
+    }
+    .modal-bg.on { display: flex; }
+    .modal {
+      background: #fff; border-radius: 22px 22px 0 0;
+      padding: 22px 20px calc(22px + env(safe-area-inset-bottom, 0px));
+      width: 100%; max-height: 85vh; overflow-y: auto;
+      animation: slideup .3s ease;
+    }
+    @keyframes slideup {
+      from { transform: translateY(100%); }
+      to   { transform: translateY(0); }
+    }
+    .modal-hdr {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: 18px;
+    }
+    .modal-title { font-size: 18px; font-weight: 800; }
+    .close-btn {
+      width: 30px; height: 30px; border-radius: 50%;
+      background: var(--border); border: none; cursor: pointer;
+      font-size: 15px; display: flex; align-items: center; justify-content: center;
+    }
+
+    /* ── Utilities ── */
+    .hidden { display: none !important; }
+    .mt-10  { margin-top: 10px; }
+    .mt-14  { margin-top: 14px; }
+    .divider { height: 1px; background: var(--border); margin: 12px 0; }
+  </style>
+</head>
+<body>
+
+<!-- ═══ Header ═══ -->
+<header>
+  <div class="hdr-icon">🔬</div>
+  <div>
+    <h1>SkinScan</h1>
+    <p>AI 护肤成分分析</p>
+  </div>
+</header>
+
+<!-- ═══ Main ═══ -->
+<main>
+
+  <!-- ─ Tab: 分析 ─ -->
+  <div class="tab active" id="tab-scan">
+    <div class="pg-hdr">
+      <div>
+        <div class="pg-title">成分分析</div>
+        <div class="pg-sub">上传成分表图片或手动输入，获取 AI 报告</div>
+      </div>
+    </div>
+
+    <div class="mode-row">
+      <button class="mode-btn active" id="mbtn-img" onclick="setMode('image')">📷 图片分析</button>
+      <button class="mode-btn"        id="mbtn-txt" onclick="setMode('text')">✏️ 手动输入</button>
+    </div>
+
+    <!-- Image mode -->
+    <div id="m-image">
+      <div class="card" style="padding:0; overflow:hidden;">
+        <img id="img-prev" class="img-preview" alt="预览">
+        <div class="upload-area" id="drop-zone" onclick="document.getElementById('file-in').click()">
+          <div class="upload-icon">📸</div>
+          <div class="upload-text">
+            <strong>点击上传 / 拍照</strong>
+            <span>支持 JPG · PNG · HEIC</span>
+          </div>
+        </div>
+        <input type="file" id="file-in" accept="image/*" style="display:none" onchange="onFile(event)">
+      </div>
+      <div class="btn-row" style="margin-bottom:10px;">
+        <button class="btn btn-secondary" onclick="doCamera()">📷 拍照</button>
+        <button class="btn btn-outline"   onclick="doGallery()">🖼️ 相册</button>
+      </div>
+      <button class="btn btn-primary" id="btn-analyze-img" disabled onclick="runAnalyzeImage()">
+        🔬 分析成分
+      </button>
+    </div>
+
+    <!-- Text mode -->
+    <div id="m-text" class="hidden">
+      <div class="card">
+        <div class="field">
+          <label class="lbl">产品名称（可选）</label>
+          <input type="text" id="in-pname" placeholder="例：SK-II 神仙水">
+        </div>
+        <div class="field" style="margin-bottom:0">
+          <label class="lbl">成分列表 *</label>
+          <textarea id="in-ings" placeholder="将成分表文字粘贴于此...&#10;&#10;例：Water, Niacinamide, Glycerin, Panthenol..."></textarea>
+        </div>
+      </div>
+      <button class="btn btn-primary" onclick="runAnalyzeText()">🔬 分析成分</button>
+    </div>
+
+    <!-- Results -->
+    <div id="scan-result" class="hidden mt-14"></div>
+  </div>
+
+  <!-- ─ Tab: 护肤柜 ─ -->
+  <div class="tab" id="tab-cabinet">
+    <div class="pg-hdr">
+      <div>
+        <div class="pg-title">护肤柜</div>
+        <div class="pg-sub">管理您的护肤品</div>
+      </div>
+      <button class="btn btn-primary btn-sm" onclick="openAddModal()">+ 添加</button>
+    </div>
+    <div id="cabinet-list"></div>
+  </div>
+
+  <!-- ─ Tab: 护肤程序 ─ -->
+  <div class="tab" id="tab-routine">
+    <div class="pg-hdr">
+      <div>
+        <div class="pg-title">护肤程序</div>
+        <div class="pg-sub">AI 生成个性化早晚护肤步骤</div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">🌸 选择护肤品（至少 2 个）</div>
+      <div id="routine-sel"></div>
+      <button class="btn btn-primary mt-10" onclick="runRoutine()">✨ 生成护肤程序</button>
+    </div>
+    <div id="routine-result" class="hidden"></div>
+  </div>
+
+  <!-- ─ Tab: 冲突检测 ─ -->
+  <div class="tab" id="tab-conflicts">
+    <div class="pg-hdr">
+      <div>
+        <div class="pg-title">冲突检测</div>
+        <div class="pg-sub">检测多品之间的成分冲突</div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">⚡ 选择要检测的产品（至少 2 个）</div>
+      <div id="conflict-sel"></div>
+      <button class="btn btn-primary mt-10" onclick="runConflicts()">🔍 开始检测</button>
+    </div>
+    <div id="conflict-result" class="hidden"></div>
+  </div>
+
+</main>
+
+<!-- ═══ Bottom Nav ═══ -->
+<nav>
+  <button class="nav-btn active" id="nav-scan"      onclick="switchTab('scan')">
+    <span class="nav-icon">🔬</span><span class="nav-label">分析</span>
+  </button>
+  <button class="nav-btn"         id="nav-cabinet"  onclick="switchTab('cabinet')">
+    <span class="nav-icon">🧴</span><span class="nav-label">护肤柜</span>
+  </button>
+  <button class="nav-btn"         id="nav-routine"  onclick="switchTab('routine')">
+    <span class="nav-icon">✨</span><span class="nav-label">护肤程序</span>
+  </button>
+  <button class="nav-btn"         id="nav-conflicts" onclick="switchTab('conflicts')">
+    <span class="nav-icon">⚡</span><span class="nav-label">冲突检测</span>
+  </button>
+</nav>
+
+<!-- ═══ Add Product Modal ═══ -->
+<div class="modal-bg" id="add-modal">
+  <div class="modal">
+    <div class="modal-hdr">
+      <span class="modal-title">添加护肤品</span>
+      <button class="close-btn" onclick="closeAddModal()">✕</button>
+    </div>
+    <div class="field">
+      <label class="lbl">产品名称 *</label>
+      <input type="text" id="m-name" placeholder="例：兰蔻小黑瓶精华">
+    </div>
+    <div class="field">
+      <label class="lbl">产品类型</label>
+      <input type="text" id="m-type" placeholder="例：精华、面霜、防晒、爽肤水">
+    </div>
+    <div class="field">
+      <label class="lbl">成分列表</label>
+      <textarea id="m-ings" placeholder="粘贴成分表（可选，用于冲突检测）..."></textarea>
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-outline" onclick="closeAddModal()">取消</button>
+      <button class="btn btn-primary" onclick="addProduct()">添加产品</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ Loading ═══ -->
+<div id="loading">
+  <div class="spinner"></div>
+  <div class="load-txt" id="load-txt">AI 分析中...</div>
+</div>
+
+<!-- ═══ Toast ═══ -->
+<div id="toast"></div>
+
+<!-- ═══ Script ═══ -->
+<script>
+const API_URL = '/api/analyze';
+
+// ── State ──────────────────────────────────────────────────────────────────
+let cabinet = JSON.parse(localStorage.getItem('skinscan_v1') || '[]');
+let mode = 'image';
+let selectedFile = null;
+let lastAnalysis = null;
+
+// ── Tab switching ──────────────────────────────────────────────────────────
+function switchTab(id) {
+  document.querySelectorAll('.tab').forEach(el => el.classList.remove('active'));
+  document.querySelectorAll('.nav-btn').forEach(el => el.classList.remove('active'));
+  document.getElementById('tab-' + id).classList.add('active');
+  document.getElementById('nav-' + id).classList.add('active');
+  if (id === 'cabinet')   renderCabinet();
+  if (id === 'routine')   renderSel('routine-sel');
+  if (id === 'conflicts') renderSel('conflict-sel');
+}
+
+// ── Mode toggle ────────────────────────────────────────────────────────────
+function setMode(m) {
+  mode = m;
+  document.getElementById('m-image').classList.toggle('hidden', m !== 'image');
+  document.getElementById('m-text').classList.toggle('hidden',  m !== 'text');
+  document.getElementById('mbtn-img').classList.toggle('active', m === 'image');
+  document.getElementById('mbtn-txt').classList.toggle('active', m !== 'image');
+  document.getElementById('scan-result').classList.add('hidden');
+}
+
+// ── Image upload ───────────────────────────────────────────────────────────
+function doCamera() {
+  const f = document.getElementById('file-in');
+  f.setAttribute('capture', 'environment'); f.click();
+}
+function doGallery() {
+  const f = document.getElementById('file-in');
+  f.removeAttribute('capture'); f.click();
+}
+
+function onFile(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  selectedFile = file;
+  const prev = document.getElementById('img-prev');
+  prev.style.display = 'block';
+  prev.src = URL.createObjectURL(file);
+  document.getElementById('drop-zone').style.display = 'none';
+  document.getElementById('btn-analyze-img').disabled = false;
+}
+
+// Drag-and-drop
+const dz = document.getElementById('drop-zone');
+dz.addEventListener('dragover',  e => { e.preventDefault(); dz.classList.add('over'); });
+dz.addEventListener('dragleave', () => dz.classList.remove('over'));
+dz.addEventListener('drop', e => {
+  e.preventDefault(); dz.classList.remove('over');
+  const file = e.dataTransfer.files[0];
+  if (file?.type.startsWith('image/')) {
+    selectedFile = file;
+    document.getElementById('img-prev').style.display = 'block';
+    document.getElementById('img-prev').src = URL.createObjectURL(file);
+    dz.style.display = 'none';
+    document.getElementById('btn-analyze-img').disabled = false;
+  }
+});
+
+// ── Image compression ──────────────────────────────────────────────────────
+function compressImage(file, maxPx = 900, quality = 0.85) {
+  return new Promise(resolve => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      const ratio = Math.min(maxPx / img.width, maxPx / img.height, 1);
+      const canvas = document.createElement('canvas');
+      canvas.width  = img.width  * ratio;
+      canvas.height = img.height * ratio;
+      canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+      canvas.toBlob(resolve, 'image/jpeg', quality);
+    };
+    img.src = url;
+  });
+}
+
+function blobToBase64(blob) {
+  return new Promise((res, rej) => {
+    const r = new FileReader();
+    r.onload  = () => res(r.result.split(',')[1]);
+    r.onerror = rej;
+    r.readAsDataURL(blob);
+  });
+}
+
+// ── Analyze ────────────────────────────────────────────────────────────────
+async function runAnalyzeImage() {
+  if (!selectedFile) return;
+  showLoading('🔬 AI 正在读取成分...');
+  try {
+    const blob   = await compressImage(selectedFile);
+    const base64 = await blobToBase64(blob);
+    const res    = await api({ action: 'analyze_image', image: base64, imageType: 'image/jpeg' });
+    lastAnalysis = res.result;
+    showAnalysis(res.result);
+  } catch (e) {
+    toast(e.message || '分析失败，请重试', 'err');
+  } finally { hideLoading(); }
+}
+
+async function runAnalyzeText() {
+  const text = document.getElementById('in-ings').value.trim();
+  if (!text) { toast('请输入成分列表', 'err'); return; }
+  showLoading('🔬 AI 正在分析成分...');
+  try {
+    const res = await api({ action: 'analyze_text', text });
+    lastAnalysis = res.result;
+    if (typeof res.result === 'object' && !res.result.product_name) {
+      res.result.product_name = document.getElementById('in-pname').value.trim() || '未命名产品';
+    }
+    showAnalysis(res.result);
+  } catch (e) {
+    toast(e.message || '分析失败，请重试', 'err');
+  } finally { hideLoading(); }
+}
+
+// ── Show analysis result ───────────────────────────────────────────────────
+function showAnalysis(r) {
+  const el = document.getElementById('scan-result');
+  el.classList.remove('hidden');
+
+  if (typeof r === 'string') {
+    el.innerHTML = `<div class="card"><p style="font-size:14px;line-height:1.7">${r.replace(/\n/g,'<br>')}</p></div>`;
+    el.scrollIntoView({ behavior:'smooth', block:'nearest' });
+    return;
+  }
+
+  const rating = Number(r.safety_rating) || 0;
+  const rColor = rating >= 8 ? '#10B981' : rating >= 5 ? '#F59E0B' : '#EF4444';
+
+  const skins = (r.skin_type_suitable || [])
+    .map(s => `<span class="badge b-purple">${s}</span>`).join('');
+
+  const ings = (r.key_ingredients || []).map(i => `
+    <div class="ing-item">
+      <div class="ing-name">${i.name || ''}</div>
+      <div class="ing-role">${i.role || ''}</div>
+      ${i.benefit ? `<div class="ing-benefit">✅ ${i.benefit}</div>` : ''}
+      ${i.concern ? `<div class="ing-concern">⚠️ ${i.concern}</div>` : ''}
+    </div>
+  `).join('');
+
+  const warns = (r.warnings || []).filter(Boolean)
+    .map(w => `<div style="color:#991B1B;font-size:13px;margin-top:5px">⚠️ ${w}</div>`).join('');
+
+  el.innerHTML = `
+    <div class="card">
+      <div class="card-title">📊 分析结果</div>
+      <h3 style="font-size:18px;font-weight:800;margin-bottom:10px">${r.product_name || '未知产品'}</h3>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:2px">
+        <span style="font-size:13px;color:var(--muted)">安全评分</span>
+        <span style="font-weight:800;font-size:20px;color:${rColor}">${rating}<span style="font-size:14px;color:var(--muted)">/10</span></span>
+      </div>
+      <div class="rating-bar"><div class="rating-fill" style="width:${rating*10}%;background:${rColor}"></div></div>
+      <div style="margin-bottom:11px">
+        <div style="font-size:13px;color:var(--muted);margin-bottom:5px">适合肤质</div>
+        <div>${skins || '<span class="badge b-gray">通用</span>'}</div>
+      </div>
+      <p style="font-size:14px;line-height:1.65;color:var(--text)">${r.summary || ''}</p>
+      ${warns}
+    </div>
+    <div class="card">
+      <div class="card-title">🧪 关键成分（${(r.key_ingredients || []).length} 项）</div>
+      ${ings || '<p style="font-size:14px;color:var(--muted)">暂无成分数据</p>'}
+    </div>
+    <button class="btn btn-secondary mt-10" onclick="saveAnalysis()">💾 保存到护肤柜</button>
+  `;
+  el.scrollIntoView({ behavior:'smooth', block:'nearest' });
+}
+
+function saveAnalysis() {
+  if (!lastAnalysis || typeof lastAnalysis !== 'object') return;
+  const name = lastAnalysis.product_name
+    || (mode === 'text' ? document.getElementById('in-pname').value.trim() : '')
+    || '未命名产品';
+  addToCabinet({
+    id: Date.now(), name,
+    type: '',
+    ingredients: mode === 'text' ? document.getElementById('in-ings').value.trim() : '（图片分析）',
+    analysis: lastAnalysis,
+    addedAt: new Date().toISOString()
+  });
+  toast('✅ 已保存到护肤柜', 'ok');
+}
+
+// ── Cabinet ────────────────────────────────────────────────────────────────
+function addToCabinet(p) {
+  cabinet.push(p); saveCabinet();
+}
+function saveCabinet() {
+  localStorage.setItem('skinscan_v1', JSON.stringify(cabinet));
+}
+
+function renderCabinet() {
+  const el = document.getElementById('cabinet-list');
+  if (!cabinet.length) {
+    el.innerHTML = `<div class="empty">
+      <div class="empty-ic">🧴</div>
+      <h3>护肤柜是空的</h3>
+      <p>点击右上角添加产品，开始管理您的护肤程序</p>
+    </div>`;
+    return;
+  }
+  el.innerHTML = cabinet.map(p => `
+    <div class="prod-card" id="pc-${p.id}">
+      <div class="prod-icon">${typeEmoji(p.type)}</div>
+      <div class="prod-info">
+        <div class="prod-name">${p.name}</div>
+        <div class="prod-meta">${p.type || '护肤品'} · ${fmtDate(p.addedAt)}</div>
+        ${p.analysis ? `<div style="margin-top:4px"><span class="badge b-green">已分析 ⭐${p.analysis.safety_rating ?? '-'}</span></div>` : ''}
+        <div class="prod-acts">
+          ${p.analysis ? `<button class="btn btn-secondary btn-sm" onclick="viewAnalysis(${p.id})">查看报告</button>` : ''}
+          <button class="btn btn-danger btn-sm" onclick="delProduct(${p.id})">删除</button>
+        </div>
+      </div>
+    </div>
+  `).join('');
+}
+
+function typeEmoji(t) {
+  if (!t) return '🧴';
+  const map = [['精华','💧'],['面霜','🫧'],['防晒','☀️'],['洁面','🫸'],['爽肤水','💦'],['面膜','🎭'],['眼霜','👁️'],['卸妆','🪞'],['乳液','🥛']];
+  for (const [k, v] of map) { if (t.includes(k)) return v; }
+  return '🧴';
+}
+function fmtDate(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  return `${d.getMonth()+1}月${d.getDate()}日`;
+}
+
+function viewAnalysis(id) {
+  const p = cabinet.find(x => x.id === id);
+  if (!p?.analysis) return;
+  switchTab('scan');
+  lastAnalysis = p.analysis;
+  showAnalysis(p.analysis);
+}
+
+function delProduct(id) {
+  if (!confirm('确认删除此产品？')) return;
+  cabinet = cabinet.filter(x => x.id !== id);
+  saveCabinet(); renderCabinet();
+  toast('已删除产品');
+}
+
+// ── Add Product Modal ──────────────────────────────────────────────────────
+function openAddModal() {
+  ['m-name','m-type','m-ings'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('add-modal').classList.add('on');
+}
+function closeAddModal() {
+  document.getElementById('add-modal').classList.remove('on');
+}
+function addProduct() {
+  const name = document.getElementById('m-name').value.trim();
+  if (!name) { toast('请输入产品名称', 'err'); return; }
+  addToCabinet({
+    id: Date.now(), name,
+    type: document.getElementById('m-type').value.trim(),
+    ingredients: document.getElementById('m-ings').value.trim(),
+    analysis: null,
+    addedAt: new Date().toISOString()
+  });
+  closeAddModal(); renderCabinet();
+  toast('✅ 产品已添加', 'ok');
+}
+
+// ── Product selector (for Routine & Conflicts) ─────────────────────────────
+function renderSel(containerId) {
+  const el = document.getElementById(containerId);
+  if (!cabinet.length) {
+    el.innerHTML = `<p style="font-size:14px;color:var(--muted);text-align:center;padding:16px 0">护肤柜为空，请先添加产品</p>`;
+    return;
+  }
+  el.innerHTML = cabinet.map(p => `
+    <label class="check-item" for="ck-${containerId}-${p.id}">
+      <input type="checkbox" id="ck-${containerId}-${p.id}" value="${p.id}">
+      <div>
+        <div class="check-item-name">${p.name}</div>
+        <div class="check-item-sub">${p.type || '护肤品'}</div>
+      </div>
+    </label>
+  `).join('');
+}
+
+document.addEventListener('change', e => {
+  if (e.target.type === 'checkbox') {
+    e.target.closest('.check-item')?.classList.toggle('sel', e.target.checked);
+  }
+});
+
+function getSelected(containerId) {
+  const cbs = document.querySelectorAll(`#${containerId} input[type=checkbox]:checked`);
+  const ids = Array.from(cbs).map(c => Number(c.value));
+  return cabinet.filter(p => ids.includes(p.id));
+}
+
+// ── Routine ────────────────────────────────────────────────────────────────
+async function runRoutine() {
+  const prods = getSelected('routine-sel');
+  if (prods.length < 2) { toast('请至少选择 2 个产品', 'err'); return; }
+  showLoading('✨ 正在生成护肤程序...');
+  try {
+    const data = prods.map(p => ({ name: p.name, type: p.type, ingredients: p.ingredients }));
+    const res  = await api({ action: 'generate_routine', products: data });
+    showRoutine(res.result);
+  } catch (e) { toast(e.message || '生成失败', 'err'); }
+  finally { hideLoading(); }
+}
+
+function showRoutine(r) {
+  const el = document.getElementById('routine-result');
+  el.classList.remove('hidden');
+
+  if (typeof r === 'string') {
+    el.innerHTML = `<div class="card"><p style="font-size:14px;line-height:1.7">${r.replace(/\n/g,'<br>')}</p></div>`;
+    el.scrollIntoView({ behavior:'smooth', block:'nearest' });
+    return;
+  }
+
+  const steps = (arr) => (arr || []).map(s => `
+    <div class="step-row">
+      <div class="step-num">${s.step}</div>
+      <div>
+        <div class="step-prod">${s.product_name}</div>
+        <div class="step-use">${s.usage || ''}</div>
+        ${s.tips ? `<div class="step-tip">💡 ${s.tips}</div>` : ''}
+      </div>
+    </div>
+  `).join('');
+
+  el.innerHTML = `
+    <div class="card">
+      <div class="card-title">☀️ 早间护肤程序</div>
+      ${steps(r.morning) || '<p style="font-size:14px;color:var(--muted)">暂无数据</p>'}
+    </div>
+    <div class="card">
+      <div class="card-title">🌙 晚间护肤程序</div>
+      ${steps(r.evening) || '<p style="font-size:14px;color:var(--muted)">暂无数据</p>'}
+    </div>
+    ${r.notes ? `<div class="card"><div class="card-title">💡 护肤建议</div><p style="font-size:14px;line-height:1.65">${r.notes}</p></div>` : ''}
+  `;
+  el.scrollIntoView({ behavior:'smooth', block:'nearest' });
+}
+
+// ── Conflicts ──────────────────────────────────────────────────────────────
+async function runConflicts() {
+  const prods = getSelected('conflict-sel');
+  if (prods.length < 2) { toast('请至少选择 2 个产品', 'err'); return; }
+  showLoading('🔍 正在检测成分冲突...');
+  try {
+    const data = prods.map(p => ({ name: p.name, type: p.type, ingredients: p.ingredients }));
+    const res  = await api({ action: 'check_conflicts', products: data });
+    showConflicts(res.result);
+  } catch (e) { toast(e.message || '检测失败', 'err'); }
+  finally { hideLoading(); }
+}
+
+function showConflicts(r) {
+  const el = document.getElementById('conflict-result');
+  el.classList.remove('hidden');
+
+  if (typeof r === 'string') {
+    el.innerHTML = `<div class="card"><p style="font-size:14px;line-height:1.7">${r.replace(/\n/g,'<br>')}</p></div>`;
+    el.scrollIntoView({ behavior:'smooth', block:'nearest' });
+    return;
+  }
+
+  const conflicts = r.conflicts || [];
+  const items = conflicts.map(c => `
+    <div class="conf-item conf-${c.severity || 'medium'}">
+      <div class="conf-title">
+        ${c.severity === 'high' ? '🔴' : c.severity === 'medium' ? '🟡' : '🟢'}
+        ${(c.products || []).join(' + ')}
+      </div>
+      ${c.conflicting_ingredients?.length
+        ? `<div style="font-size:12px;color:var(--muted);margin-bottom:4px">冲突成分：${c.conflicting_ingredients.join(', ')}</div>`
+        : ''}
+      <div class="conf-reason">${c.reason || ''}</div>
+      ${c.suggestion ? `<div class="conf-sugg">建议：${c.suggestion}</div>` : ''}
+    </div>
+  `).join('');
+
+  el.innerHTML = `
+    <div class="card">
+      <div class="card-title">${r.has_conflicts && conflicts.length ? '⚠️ 发现冲突' : '✅ 无明显冲突'}</div>
+      ${items || '<p style="color:#065F46;font-size:14px">所选产品成分兼容，可以放心一起使用！</p>'}
+    </div>
+    ${r.overall_assessment ? `
+      <div class="card">
+        <div class="card-title">📝 综合评估</div>
+        <p style="font-size:14px;line-height:1.65">${r.overall_assessment}</p>
+      </div>` : ''}
+  `;
+  el.scrollIntoView({ behavior:'smooth', block:'nearest' });
+}
+
+// ── API call ───────────────────────────────────────────────────────────────
+async function api(body) {
+  const r = await fetch(API_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body)
+  });
+  const j = await r.json();
+  if (!r.ok) throw new Error(j.error || '请求失败');
+  return j;
+}
+
+// ── UI helpers ─────────────────────────────────────────────────────────────
+function showLoading(txt) {
+  document.getElementById('load-txt').textContent = txt || 'AI 分析中...';
+  document.getElementById('loading').classList.add('on');
+}
+function hideLoading() {
+  document.getElementById('loading').classList.remove('on');
+}
+
+let _toastTimer;
+function toast(msg, type = '') {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.className = ['on', type].filter(Boolean).join(' ');
+  clearTimeout(_toastTimer);
+  _toastTimer = setTimeout(() => el.className = '', 3000);
+}
+</script>
+</body>
+</html>
